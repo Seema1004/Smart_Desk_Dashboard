@@ -1,0 +1,8 @@
+{
+    "projects": {
+        "Smart_desk_Simulator": {
+            "credentialSecret": false
+        }
+    },
+    "activeProject": "Smart_desk_Simulator"
+}

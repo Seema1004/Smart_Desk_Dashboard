@@ -1,0 +1,224 @@
+[
+    {
+        "id": "00faea911c2e17d1",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "d7a9ea05a589f28e",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "5ed1155aaed18428",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": 8086,
+        "protocol": "http",
+        "database": "database",
+        "name": "Local Influx 2",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://localhost:8086",
+        "timeout": 10,
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "44cfd562e37fa1a8",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-influxdb": "0.7.0"
+        }
+    },
+    {
+        "id": "34345f3168db1b64",
+        "type": "mqtt out",
+        "z": "00faea911c2e17d1",
+        "name": "Smart_Desk_Publisher",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "d7a9ea05a589f28e",
+        "x": 780,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "661921696d231a7c",
+        "type": "inject",
+        "z": "00faea911c2e17d1",
+        "name": "Tick-Smart Desk",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "10",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 210,
+        "y": 260,
+        "wires": [
+            [
+                "92d994a8c47c6d3e"
+            ]
+        ]
+    },
+    {
+        "id": "92d994a8c47c6d3e",
+        "type": "function",
+        "z": "00faea911c2e17d1",
+        "name": "Simulate Smart Desk",
+        "func": "// ----- Smart Desk Full Simulator -----\n// This function runs every X seconds from your Inject node.\n// It generates realistic values for the dashboard.\n\n// Helper: random in range\nfunction rand(min, max) {\n    return Math.round(Math.random() * (max - min) + min);\n}\n\n// Get or init focus timer state from flow context\nlet state = flow.get(\"focusState\") || {\n    mode: \"focus\",       // \"focus\" or \"break\"\n    remainingSec: 25 * 60  // start at 25 minutes\n};\n\n// How often this node is triggered (match your Inject interval)\n// If your Inject is every 10 seconds, set 10 here:\nconst TICK_SEC = 10;\n\n// Update focus timer\nif (state.mode === \"focus\") {\n    state.remainingSec -= TICK_SEC;\n    if (state.remainingSec <= 0) {\n        state.mode = \"break\";\n        state.remainingSec = 5 * 60; // 5 min break\n    }\n} else if (state.mode === \"break\") {\n    state.remainingSec -= TICK_SEC;\n    if (state.remainingSec <= 0) {\n        state.mode = \"focus\";\n        state.remainingSec = 25 * 60; // back to 25 min focus\n    }\n}\n\n// Save state back\nflow.set(\"focusState\", state);\n\n// Simulate presence: more likely to be present in focus mode\nconst present = state.mode === \"focus\" ? (Math.random() < 0.8) : (Math.random() < 0.3);\n\n// Simulate desk metrics\nconst deskHeightCm = rand(70, 120);          // 70–120 cm\nconst temperatureC = (Math.random() * 4 + 22).toFixed(1);  // 22–26 °C\nconst lightLux = rand(200, 500);             // 200–500 lux\nconst airQualityAQI = rand(50, 120);         // 50–120 AQI\nconst lampOn = present && lightLux < 350;    // lamp ON if present & relatively dark\n\n// Simulate focusScore: high if present & in focus mode\nlet focusScore = 0;\nif (present && state.mode === \"focus\") {\n    focusScore = rand(60, 95);\n} else if (present) {\n    focusScore = rand(30, 70);\n} else {\n    focusScore = 0;\n}\n\n// Compute remaining minutes for display\nconst focusTimerMin = Math.max(0, Math.round(state.remainingSec / 60));\n\n// Build payload\nconst payload = {\n    deskId: \"desk01\",\n    userId: \"user01\",\n    deskHeightCm: deskHeightCm,\n    temperatureC: Number(temperatureC),\n    lightLux: lightLux,\n    airQualityAQI: airQualityAQI,\n    present: present,\n    lampOn: lampOn,\n    focusScore: focusScore,\n    focusTimerMin: focusTimerMin,\n    mode: state.mode,          // \"focus\" or \"break\"\n    ts: new Date().toISOString()\n};\n\n// Set topic and payload for MQTT\nmsg.topic = \"desk/desk01/telemetry\";\nmsg.payload = JSON.stringify(payload);\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 500,
+        "y": 140,
+        "wires": [
+            [
+                "34345f3168db1b64"
+            ]
+        ]
+    },
+    {
+        "id": "afd6ced74296e452",
+        "type": "mqtt in",
+        "z": "00faea911c2e17d1",
+        "name": "Smart Desk Telemetry IN",
+        "topic": "desk/desk01/telemetry",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "d7a9ea05a589f28e",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 210,
+        "y": 360,
+        "wires": [
+            [
+                "a17d74df0fecba88"
+            ]
+        ]
+    },
+    {
+        "id": "18f7357593e54d51",
+        "type": "debug",
+        "z": "00faea911c2e17d1",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "a17d74df0fecba88",
+        "type": "json",
+        "z": "00faea911c2e17d1",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 450,
+        "y": 360,
+        "wires": [
+            [
+                "8c58fa0660fa325d"
+            ]
+        ]
+    },
+    {
+        "id": "5a872dc6776bb546",
+        "type": "influxdb out",
+        "z": "00faea911c2e17d1",
+        "influxdb": "5ed1155aaed18428",
+        "name": "Local Influx 2",
+        "measurement": "",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "iot-org",
+        "bucket": "smartdesk",
+        "x": 830,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "8c58fa0660fa325d",
+        "type": "function",
+        "z": "00faea911c2e17d1",
+        "name": "Prepare Influx point",
+        "func": "// ----- Prepare Influx Point for Smart Desk with Notifications -----\n\nlet p = msg.payload;\n\n// If payload is a JSON string, parse it\nif (typeof p === \"string\") {\n    try {\n        p = JSON.parse(p);\n    } catch (e) {\n        node.warn(\"Payload is a string but not valid JSON: \" + e.message);\n        return null;\n    }\n}\n\n// Validate\nif (!p || typeof p !== \"object\") {\n    node.warn(\"No valid payload object received\");\n    return null;\n}\nif (!p.deskId || !p.userId) {\n    node.warn(\"Missing deskId or userId\");\n    return null;\n}\n\n// Convert booleans to numbers for Influx\nconst presentVal = p.present ? 1 : 0;\nconst lampVal    = p.lampOn ? 1 : 0;\n\n// ---- Notification state (we assume your simulator tick is every 10s) ----\nconst TICK_SEC = 10;   // match your Inject interval\n\nlet sitSec      = flow.get(\"sitSec\")      || 0;\nlet lowFocusSec = flow.get(\"lowFocusSec\") || 0;\n\n// 1) Sitting time: accumulate while present\nif (p.present) {\n    sitSec += TICK_SEC;\n} else {\n    sitSec = 0; // reset when away\n}\n\n// 2) Focus quality: accumulate time where focusScore is low while present\nif (p.present && Number(p.focusScore) < 50) {\n    lowFocusSec += TICK_SEC;\n} else {\n    lowFocusSec = 0;\n}\n\n// Save back to context\nflow.set(\"sitSec\", sitSec);\nflow.set(\"lowFocusSec\", lowFocusSec);\n\n// ---- Compute warning flags ----\n\n// Long sitting: > 45 minutes\nconst LONG_SIT_THRESHOLD_SEC = 2 * 60 //45 * 60;\nconst longSitWarning = sitSec >= LONG_SIT_THRESHOLD_SEC ? 1 : 0;\n\n// Dim light: present, light < 250 lux, lamp is OFF\nconst dimLightWarning = (p.present && Number(p.lightLux) < 250 && !p.lampOn) ? 1 : 0;\n\n// Low focus: present & low focus for > 10 minutes\nconst LOW_FOCUS_THRESHOLD_SEC = 5 * 60;\nconst lowFocusWarning = (lowFocusSec >= LOW_FOCUS_THRESHOLD_SEC) ? 1 : 0;\n\n// Build a human-readable notification text\nlet messages = [];\nif (longSitWarning) {\n    messages.push(\"You have been sitting for a long time — consider standing up or taking a short walk.\");\n}\nif (dimLightWarning) {\n    messages.push(\"Desk light is low while you are working — turn on the lamp or increase room lighting.\");\n}\nif (lowFocusWarning) {\n    messages.push(\"Your focus has been low for a while — take a short break or consciously refocus.\");\n}\nif (messages.length === 0) {\n    messages.push(\"All good! Posture, light and focus look fine right now.\");\n}\nconst notifyText = messages.join(\" \");\n\n// ---- Influx mapping ----\nmsg.measurement = \"desk_status\";\n\nmsg.tags = {\n    deskId: p.deskId,\n    userId: p.userId,\n    mode:   p.mode || \"unknown\"\n};\n\n// Numeric fields + a string field for the message\nmsg.payload = {\n    deskHeightCm: Number(p.deskHeightCm) || 0,\n    temperatureC: Number(p.temperatureC) || 0,\n    lightLux:     Number(p.lightLux)     || 0,\n    airQualityAQI:Number(p.airQualityAQI)|| 0,\n    present:      presentVal,\n    lampOn:       lampVal,\n    focusScore:   Number(p.focusScore)   || 0,\n    focusTimerMin:Number(p.focusTimerMin)|| 0,\n    longSitWarning:   longSitWarning,\n    dimLightWarning:  dimLightWarning,\n    lowFocusWarning:  lowFocusWarning,\n    notifyText:       notifyText         // string field\n};\n\n// Timestamp\nmsg.timestamp = p.ts ? new Date(p.ts) : new Date();\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "\n",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 300,
+        "wires": [
+            [
+                "5a872dc6776bb546",
+                "18f7357593e54d51"
+            ]
+        ]
+    }
+]
