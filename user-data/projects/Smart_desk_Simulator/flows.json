@@ -93,7 +93,7 @@
                 "vt": "str"
             }
         ],
-        "repeat": "10",
+        "repeat": "20",
         "crontab": "",
         "once": false,
         "onceDelay": 0.1,
@@ -113,7 +113,7 @@
         "type": "function",
         "z": "00faea911c2e17d1",
         "name": "Simulate Smart Desk",
-        "func": "// ----- Smart Desk Full Simulator -----\n// This function runs every X seconds from your Inject node.\n// It generates realistic values for the dashboard.\n\n// Helper: random in range\nfunction rand(min, max) {\n    return Math.round(Math.random() * (max - min) + min);\n}\n\n// Get or init focus timer state from flow context\nlet state = flow.get(\"focusState\") || {\n    mode: \"focus\",       // \"focus\" or \"break\"\n    remainingSec: 25 * 60  // start at 25 minutes\n};\n\n// How often this node is triggered (match your Inject interval)\n// If your Inject is every 10 seconds, set 10 here:\nconst TICK_SEC = 10;\n\n// Update focus timer\nif (state.mode === \"focus\") {\n    state.remainingSec -= TICK_SEC;\n    if (state.remainingSec <= 0) {\n        state.mode = \"break\";\n        state.remainingSec = 5 * 60; // 5 min break\n    }\n} else if (state.mode === \"break\") {\n    state.remainingSec -= TICK_SEC;\n    if (state.remainingSec <= 0) {\n        state.mode = \"focus\";\n        state.remainingSec = 25 * 60; // back to 25 min focus\n    }\n}\n\n// Save state back\nflow.set(\"focusState\", state);\n\n// Simulate presence: more likely to be present in focus mode\nconst present = state.mode === \"focus\" ? (Math.random() < 0.8) : (Math.random() < 0.3);\n\n// Simulate desk metrics\nconst deskHeightCm = rand(70, 120);          // 70–120 cm\nconst temperatureC = (Math.random() * 4 + 22).toFixed(1);  // 22–26 °C\nconst lightLux = rand(200, 500);             // 200–500 lux\nconst airQualityAQI = rand(50, 120);         // 50–120 AQI\nconst lampOn = present && lightLux < 350;    // lamp ON if present & relatively dark\n\n// Simulate focusScore: high if present & in focus mode\nlet focusScore = 0;\nif (present && state.mode === \"focus\") {\n    focusScore = rand(60, 95);\n} else if (present) {\n    focusScore = rand(30, 70);\n} else {\n    focusScore = 0;\n}\n\n// Compute remaining minutes for display\nconst focusTimerMin = Math.max(0, Math.round(state.remainingSec / 60));\n\n// Build payload\nconst payload = {\n    deskId: \"desk01\",\n    userId: \"user01\",\n    deskHeightCm: deskHeightCm,\n    temperatureC: Number(temperatureC),\n    lightLux: lightLux,\n    airQualityAQI: airQualityAQI,\n    present: present,\n    lampOn: lampOn,\n    focusScore: focusScore,\n    focusTimerMin: focusTimerMin,\n    mode: state.mode,          // \"focus\" or \"break\"\n    ts: new Date().toISOString()\n};\n\n// Set topic and payload for MQTT\nmsg.topic = \"desk/desk01/telemetry\";\nmsg.payload = JSON.stringify(payload);\n\nreturn msg;\n",
+        "func": "// ===== Smart Desk Enhanced Simulator (20s tick) =====\nfunction rand(min, max) { return Math.round(Math.random() * (max - min) + min); }\nfunction rfloat(min, max, d=1) { return parseFloat((Math.random()*(max-min)+min).toFixed(d)); }\n\n// Focus timer + streak state\nconst TICK_SEC = 30;  // <=== IMPORTANT: matches Inject interval (20s)\n\nlet state = flow.get(\"focusState\") || {\n    mode: \"focus\",\n    remainingSec: 25 * 60,   // 25 min focus session\n    sitStreakSec: 0,\n    standCyclesToday: 0\n};\n\n// Decide presence (more likely in focus mode)\nlet present = Math.random() < (state.mode === \"focus\" ? 0.8 : 0.3);\n\n// Advance timer\nstate.remainingSec -= TICK_SEC;\nif (state.remainingSec <= 0) {\n    if (state.mode === \"focus\") {\n        state.mode = \"break\";\n        state.remainingSec = 5 * 60;   // 5 min break\n    } else {\n        state.mode = \"focus\";\n        state.remainingSec = 25 * 60;  // back to 25 min focus\n    }\n}\n\n// Sit / stand state (1 = stand, 0 = sit)\nlet sitStandState = 1;\nif (present) {\n    sitStandState = Math.random() < 0.85 ? 0 : 1;  // mostly sitting\n}\n\n// Sitting streak + stand cycles\nif (sitStandState === 0) {\n    state.sitStreakSec += TICK_SEC;\n} else if (state.sitStreakSec > 0) {\n    state.sitStreakSec = 0;\n    state.standCyclesToday += 1;\n}\n\nflow.set(\"focusState\", state);\n\n// ---- Core readings\nconst deskHeightCm    = sitStandState ? rand(100, 120) : rand(70, 90);\nconst temperatureC    = rfloat(22, 26, 1);\nconst lightLux        = rand(150, 600);\nconst humidityPct     = rand(35, 60);\nconst noiseDb         = rand(42, 74);\nconst co2ppm          = rand(500, 1400);\nconst lampOn          = present && lightLux < 300;\nconst focusScore      = present ? (state.mode === \"focus\" ? rand(60, 95) : rand(30, 70)) : 0;\nconst keyRatePerMin   = present ? (state.mode === \"focus\" ? rand(80, 220) : rand(10, 120)) : 0;\nconst screenOn        = present ? 1 : 0;\nconst lampPowerW      = lampOn ? (lightLux < 220 ? 9 : 6) : 0;\nconst postureAngleDeg = present ? rand(5, 35) : 0;\nconst waterIntakeMl   = Math.random() < 0.05 ? rand(50, 150) : 0;\nconst microbreakDue   = (state.mode === \"focus\" && (state.remainingSec % (10 * 60) < TICK_SEC)) ? 1 : 0;\n\n// Build payload\nconst payload = {\n    deskId: \"desk01\",\n    userId: \"user01\",\n    appFocus: [\"IDE\", \"Browser\", \"Mail\", \"Other\"][rand(0, 3)],\n    present: present,\n    sitStandState: sitStandState,\n    sitStreakMin: Math.round(state.sitStreakSec / 60),\n    standCyclesToday: state.standCyclesToday,\n    deskHeightCm,\n    temperatureC,\n    lightLux,\n    humidityPct,\n    noiseDb,\n    co2ppm,\n    lampOn,\n    lampPowerW,\n    screenOn,\n    focusScore,\n    keyRatePerMin,\n    postureAngleDeg,\n    waterIntakeMl,\n    microbreakDue,\n    focusTimerMin: Math.max(0, Math.round(state.remainingSec / 60)),\n    mode: state.mode,\n    ts: new Date().toISOString()\n};\n\nmsg.topic = \"desk/desk01/telemetry\";\nmsg.payload = JSON.stringify(payload);\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -162,7 +162,7 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 840,
+        "x": 820,
         "y": 360,
         "wires": []
     },
@@ -174,11 +174,12 @@
         "property": "payload",
         "action": "",
         "pretty": false,
-        "x": 450,
+        "x": 410,
         "y": 360,
         "wires": [
             [
-                "8c58fa0660fa325d"
+                "8c58fa0660fa325d",
+                "afdbd8acdcf68747"
             ]
         ]
     },
@@ -187,7 +188,7 @@
         "type": "influxdb out",
         "z": "00faea911c2e17d1",
         "influxdb": "5ed1155aaed18428",
-        "name": "Local Influx 2",
+        "name": "Desk Sensor Details",
         "measurement": "",
         "precision": "",
         "retentionPolicy": "",
@@ -196,7 +197,7 @@
         "retentionPolicyV18Flux": "",
         "org": "iot-org",
         "bucket": "smartdesk",
-        "x": 830,
+        "x": 860,
         "y": 240,
         "wires": []
     },
@@ -204,15 +205,15 @@
         "id": "8c58fa0660fa325d",
         "type": "function",
         "z": "00faea911c2e17d1",
-        "name": "Prepare Influx point",
-        "func": "// ----- Prepare Influx Point for Smart Desk with Notifications -----\n\nlet p = msg.payload;\n\n// If payload is a JSON string, parse it\nif (typeof p === \"string\") {\n    try {\n        p = JSON.parse(p);\n    } catch (e) {\n        node.warn(\"Payload is a string but not valid JSON: \" + e.message);\n        return null;\n    }\n}\n\n// Validate\nif (!p || typeof p !== \"object\") {\n    node.warn(\"No valid payload object received\");\n    return null;\n}\nif (!p.deskId || !p.userId) {\n    node.warn(\"Missing deskId or userId\");\n    return null;\n}\n\n// Convert booleans to numbers for Influx\nconst presentVal = p.present ? 1 : 0;\nconst lampVal    = p.lampOn ? 1 : 0;\n\n// ---- Notification state (we assume your simulator tick is every 10s) ----\nconst TICK_SEC = 10;   // match your Inject interval\n\nlet sitSec      = flow.get(\"sitSec\")      || 0;\nlet lowFocusSec = flow.get(\"lowFocusSec\") || 0;\n\n// 1) Sitting time: accumulate while present\nif (p.present) {\n    sitSec += TICK_SEC;\n} else {\n    sitSec = 0; // reset when away\n}\n\n// 2) Focus quality: accumulate time where focusScore is low while present\nif (p.present && Number(p.focusScore) < 50) {\n    lowFocusSec += TICK_SEC;\n} else {\n    lowFocusSec = 0;\n}\n\n// Save back to context\nflow.set(\"sitSec\", sitSec);\nflow.set(\"lowFocusSec\", lowFocusSec);\n\n// ---- Compute warning flags ----\n\n// Long sitting: > 45 minutes\nconst LONG_SIT_THRESHOLD_SEC = 2 * 60 //45 * 60;\nconst longSitWarning = sitSec >= LONG_SIT_THRESHOLD_SEC ? 1 : 0;\n\n// Dim light: present, light < 250 lux, lamp is OFF\nconst dimLightWarning = (p.present && Number(p.lightLux) < 250 && !p.lampOn) ? 1 : 0;\n\n// Low focus: present & low focus for > 10 minutes\nconst LOW_FOCUS_THRESHOLD_SEC = 5 * 60;\nconst lowFocusWarning = (lowFocusSec >= LOW_FOCUS_THRESHOLD_SEC) ? 1 : 0;\n\n// Build a human-readable notification text\nlet messages = [];\nif (longSitWarning) {\n    messages.push(\"You have been sitting for a long time — consider standing up or taking a short walk.\");\n}\nif (dimLightWarning) {\n    messages.push(\"Desk light is low while you are working — turn on the lamp or increase room lighting.\");\n}\nif (lowFocusWarning) {\n    messages.push(\"Your focus has been low for a while — take a short break or consciously refocus.\");\n}\nif (messages.length === 0) {\n    messages.push(\"All good! Posture, light and focus look fine right now.\");\n}\nconst notifyText = messages.join(\" \");\n\n// ---- Influx mapping ----\nmsg.measurement = \"desk_status\";\n\nmsg.tags = {\n    deskId: p.deskId,\n    userId: p.userId,\n    mode:   p.mode || \"unknown\"\n};\n\n// Numeric fields + a string field for the message\nmsg.payload = {\n    deskHeightCm: Number(p.deskHeightCm) || 0,\n    temperatureC: Number(p.temperatureC) || 0,\n    lightLux:     Number(p.lightLux)     || 0,\n    airQualityAQI:Number(p.airQualityAQI)|| 0,\n    present:      presentVal,\n    lampOn:       lampVal,\n    focusScore:   Number(p.focusScore)   || 0,\n    focusTimerMin:Number(p.focusTimerMin)|| 0,\n    longSitWarning:   longSitWarning,\n    dimLightWarning:  dimLightWarning,\n    lowFocusWarning:  lowFocusWarning,\n    notifyText:       notifyText         // string field\n};\n\n// Timestamp\nmsg.timestamp = p.ts ? new Date(p.ts) : new Date();\n\nreturn msg;\n",
+        "name": "Capture Sensor details",
+        "func": "// ===== Influx mapping with new fields + notifications (20s tick) =====\nlet p = msg.payload;\nif (typeof p === \"string\") {\n    try { p = JSON.parse(p); }\n    catch (e) { node.warn(\"Bad JSON: \" + e.message); return null; }\n}\nif (!p || !p.deskId || !p.userId) return null;\n\nconst presentVal = p.present ? 1 : 0;\nconst lampVal    = p.lampOn ? 1 : 0;\n\nconst TICK_SEC = 30;   // <=== match Inject interval\n\n// Rolling timers (in seconds)\nlet lowFocusSec = flow.get(\"lowFocusSec\") || 0;\n\n// Focus: accumulate when present and focusScore < 50\nif (presentVal && Number(p.focusScore) < 50) {\n    lowFocusSec += TICK_SEC;\n} else {\n    lowFocusSec = 0;\n}\n\nflow.set(\"lowFocusSec\", lowFocusSec);\n\n// Thresholds (in seconds)\nconst LONG_SIT_THRESHOLD_SEC   = 45 * 60;   // 45 minutes\nconst LOW_FOCUS_THRESHOLD_SEC  = 10 * 60;   // 10 minutes\n\nconst longSitWarning  = (Number(p.sitStreakMin) * 60 >= LONG_SIT_THRESHOLD_SEC) ? 1 : 0;\nconst lowFocusWarning = (lowFocusSec  >= LOW_FOCUS_THRESHOLD_SEC) ? 1 : 0;\nconst postureWarning  = (presentVal && Number(p.postureAngleDeg) >= 25) ? 1 : 0;\n\n// Build friendly messages\nlet messages = [];\nif (longSitWarning) messages.push(\"You’ve been sitting >45 min — stand up or move around.\");\nif (lowFocusWarning) messages.push(\"Focus has been low for 10+ minutes — consider a short reset or walk.\");\nif (postureWarning) messages.push(\"Posture looks slouched — straighten your back and adjust desk height.\");\nif (!messages.length) messages.push(\"All good — posture, light and focus look fine right now.\");\n\nmsg.measurement = \"desk_status\";\nmsg.tags = {\n    deskId: p.deskId,\n    userId: p.userId,\n    mode:   p.mode || \"unknown\",\n    appFocus: p.appFocus || \"Other\"\n};\n\nmsg.payload = {\n    // temperature\n    temperatureC: Number(p.temperatureC) || 0,\n    mode: p.mode,\n\n    // ergonomics & usage\n    present:         presentVal,\n    sitStandState:   Number(p.sitStandState)   || 0,\n    sitStreakMin:    Number(p.sitStreakMin)    || 0,\n    standCyclesToday:Number(p.standCyclesToday)|| 0,\n    deskHeightCm:    Number(p.deskHeightCm)    || 0,\n    postureAngleDeg: Number(p.postureAngleDeg) || 0,\n\n    // productivity & energy\n    focusScore:     Number(p.focusScore)     || 0,\n    keyRatePerMin:  Number(p.keyRatePerMin)  || 0,\n    screenOn:       Number(p.screenOn)       || 0,\n    focusTimerMin:  Number(p.focusTimerMin)  || 0,\n    waterIntakeMl:  Number(p.waterIntakeMl)  || 0,\n    microbreakDue:  Number(p.microbreakDue)  || 0,\n\n    // warnings + narrative\n    longSitWarning,\n    lowFocusWarning,\n    postureWarning,\n    notifyText: messages.join(\" \")\n};\n\nmsg.timestamp = p.ts ? new Date(p.ts) : new Date();\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "\n",
         "finalize": "",
         "libs": [],
-        "x": 650,
+        "x": 620,
         "y": 300,
         "wires": [
             [
@@ -220,5 +221,61 @@
                 "18f7357593e54d51"
             ]
         ]
+    },
+    {
+        "id": "afdbd8acdcf68747",
+        "type": "function",
+        "z": "00faea911c2e17d1",
+        "name": "Capture Environment Details",
+        "func": "let p = msg.payload;\n\n// --- 1. SETUP & INPUT VALIDATION ---\nif (typeof p === \"string\") {\n    try { p = JSON.parse(p); }\n    catch (e) { node.warn(\"Bad JSON: \" + e.message); return null; }\n}\n// Ensure essential fields exist\nif (!p || !p.deskId || !p.userId) return null;\n\n// --- 2. CONFIGURATION & STATE ---\nconst TICK_SEC = 30; // Must match Inject interval\nconst DEFAULT_MODE = \"focus\";\n\n// Initializing flow variables safely\nlet highCo2Sec  = flow.get(\"highCo2Sec\")  || 0;\nlet lowLightSec = flow.get(\"lowLightSec\") || 0;\nlet postureBadSec = flow.get(\"postureBadSec\") || 0;\n\n// Convert booleans to numbers (1 or 0) for InfluxDB storage\nconst presentVal = p.present ? 1 : 0;\nconst lampVal    = p.lampOn ? 1 : 0;\nconst mode       = p.mode || DEFAULT_MODE;\n\n\n// --- 3. ROLLING TIMERS & LOGIC ---\n\n// Thresholds (in seconds)\nconst HIGH_CO2_THRESHOLD_SEC = 15 * 60;     // 15 minutes of CO2 > 1000 ppm\nconst LOW_LIGHT_THRESHOLD_SEC = 5 * 60;    // 5 minutes of light < 250 lux\nconst BAD_POSTURE_THRESHOLD_SEC = 20 * 60; // 20 minutes of poor posture\n\n// CO2 Accumulation (Accumulate when > 1000 ppm)\nif (Number(p.co2ppm) > 1000) {\n    highCo2Sec += TICK_SEC;\n} else {\n    highCo2Sec = 0;\n}\n\n// Low Light Accumulation (Accumulate if present, lamp is off, and light is too low)\nconst LOW_LIGHT_CRITERIA = presentVal && !lampVal && (Number(p.lightLux) < 250);\nif (LOW_LIGHT_CRITERIA) {\n    lowLightSec += TICK_SEC;\n} else {\n    lowLightSec = 0;\n}\n\n// Posture Accumulation (Accumulate if present and posture is poor)\n// Assuming p.postureGood is the input field\nconst POSTURE_CRITERIA = presentVal && !p.postureGood; \nif (POSTURE_CRITERIA) {\n    postureBadSec += TICK_SEC;\n} else {\n    postureBadSec = 0;\n}\n\n\n// --- 4. WARNING & NOTIFICATION GENERATION ---\n\n// Determine current warnings\nconst dimLightWarning  = (lowLightSec    >= LOW_LIGHT_THRESHOLD_SEC) ? 1 : 0;\nconst highCo2Warning   = (highCo2Sec     >= HIGH_CO2_THRESHOLD_SEC) ? 1 : 0;\nconst badPostureWarning = (postureBadSec >= BAD_POSTURE_THRESHOLD_SEC) ? 1 : 0;\n\n// Build friendly messages for the dashboard\nlet messages = [];\nif (dimLightWarning) messages.push(\"💡 Lighting is low. Please turn on your lamp or open blinds.\");\nif (highCo2Warning) messages.push(\"💨 CO₂ is high. Open a window or step away for fresh air.\");\nif (badPostureWarning) messages.push(\"🧍 Your posture is poor. Adjust your chair or take a standing break.\");\n\nif (!messages.length) {\n    // Check if the user is present and not focused, offering a mild reminder\n    if (mode !== \"focus\" && presentVal) {\n        messages.push(\"✅ All conditions good. Current mode is '\"+mode+\"'.\");\n    } else {\n        messages.push(\"✅ All good — environment and posture are perfect right now.\");\n    }\n}\n\n// Update flow state for next cycle\nflow.set(\"highCo2Sec\", highCo2Sec);\nflow.set(\"lowLightSec\", lowLightSec);\nflow.set(\"postureBadSec\", postureBadSec);\n\n\n// --- 5. OUTPUT MESSAGE CONSTRUCTION ---\n\nmsg.measurement = \"desk_status\";\nmsg.tags = {\n    deskId: p.deskId,\n    userId: p.userId,\n    mode:   mode, // Use validated/default mode\n    present: presentVal, // Added present status as a tag for easy querying\n};\n\nmsg.payload = {\n    // environment\n    humidityPct:  Number(p.humidityPct)  || 0,\n    noiseDb:      Number(p.noiseDb)      || 0,\n    co2ppm:       Number(p.co2ppm)       || 0,\n    lightLux:     Number(p.lightLux)     || 0, // Added LightLux to payload\n\n    // focus/posture\n    postureGood:  p.postureGood ? 1 : 0, // Assuming this is boolean input\n    \n    // energy\n    lampOn:         lampVal,\n    lampPowerW:     Number(p.lampPowerW)     || 0,\n\n    // rolling timers (for debugging/advanced dashboard charts)\n    highCo2Sec,\n    lowLightSec,\n    postureBadSec,\n\n    // warnings + narrative\n    dimLightWarning,\n    highCo2Warning,\n    badPostureWarning,\n    environmentNotifyText: messages.join(\" | \") // Use pipe for cleaner separation\n};\n\nmsg.timestamp = p.ts ? new Date(p.ts) : new Date();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
+        "y": 520,
+        "wires": [
+            [
+                "bd529e8161d186db",
+                "5ea854e407efd758"
+            ]
+        ]
+    },
+    {
+        "id": "bd529e8161d186db",
+        "type": "influxdb out",
+        "z": "00faea911c2e17d1",
+        "influxdb": "5ed1155aaed18428",
+        "name": "Environment Details",
+        "measurement": "",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "iot-org",
+        "bucket": "smartdesk",
+        "x": 920,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "5ea854e407efd758",
+        "type": "debug",
+        "z": "00faea911c2e17d1",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 880,
+        "y": 600,
+        "wires": []
     }
 ]

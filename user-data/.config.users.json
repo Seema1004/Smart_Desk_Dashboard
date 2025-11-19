@@ -26,6 +26,9 @@
                 "name": "Seema1004",
                 "email": "seema1004@gmail.com"
             }
+        },
+        "debug": {
+            "clearType": "all"
         }
     }
 }
