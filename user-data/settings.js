@@ -41,7 +41,7 @@ module.exports = {
      * node-red from being able to decrypt your existing credentials and they will be
      * lost.
      */
-    //credentialSecret: "a-secret-key",
+    //credentialSecret: "GroupG$MDT913$Project@!",
 
     /** By default, the flow JSON will be formatted over multiple lines making
      * it easier to compare changes when using version control.
@@ -73,14 +73,14 @@ module.exports = {
     /** To password protect the Node-RED editor and admin API, the following
      * property can be used. See https://nodered.org/docs/security.html for details.
      */
-    //adminAuth: {
-    //    type: "credentials",
-    //    users: [{
-    //        username: "admin",
-    //        password: "$2a$08$zZWtXTja0fB1pzD4sHCMyOCMYz2Z6dNbM6tl8sJogENOMcxWV9DN.",
-    //        permissions: "*"
-    //    }]
-    //},
+    adminAuth: {
+       type: "credentials",
+       users: [{
+           username: "admin",
+           password: "$2y$08$qCzUjOBcb2ps/VQ1ZpiFVusrEAQMJf/Ongep2YOgA2WYs/oh4esUO",
+           permissions: "*"
+       }]
+    },
 
     /** The following property can be used to enable HTTPS
      * This property can be either an object, containing both a (private) key
@@ -90,10 +90,11 @@ module.exports = {
      */
 
     /** Option 1: static object */
-    //https: {
-    //  key: require("fs").readFileSync('privkey.pem'),
-    //  cert: require("fs").readFileSync('cert.pem')
-    //},
+    https: {
+     key: require("fs").readFileSync('/Users/seemasharma/Desktop/MDT913/Smart_Desk_Dashboard/user-data/certs/key.pem'),
+     cert: require("fs").readFileSync('/Users/seemasharma/Desktop/MDT913/Smart_Desk_Dashboard/user-data/certs/cert.pem')
+    },
+    
 
     /** Option 2: function that returns the HTTP configuration object */
     // https: function() {
@@ -114,7 +115,7 @@ module.exports = {
     /** The following property can be used to cause insecure HTTP connections to
      * be redirected to HTTPS.
      */
-    //requireHttps: true,
+    requireHttps: true,
 
     /** To password protect the node-defined HTTP endpoints (httpNodeRoot),
      * including node-red-dashboard, or the static content (httpStatic), the
