@@ -47,9 +47,15 @@
             },
             "tours": {
                 "welcome": "4.1.1-git"
+            },
+            "dialog": {
+                "export": {
+                    "pretty": false,
+                    "json-view": false
+                }
             }
         },
-        "menu-menu-item-palette": false,
-        "menu-menu-item-sidebar": false
+        "menu-menu-item-palette": true,
+        "menu-menu-item-sidebar": true
     }
 }

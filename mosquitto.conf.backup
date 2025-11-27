@@ -1,0 +1,14 @@
+#Minimal Mosquitto Configuration
+
+#Listen on the default MQTT port
+
+listener 1883
+
+#Allow unauthenticated connections for simplicity
+
+allow_anonymous true
+
+#Enable a websocket listener for external testing (optional)
+
+listener 9001
+protocol websockets

@@ -1,5 +1,8 @@
 {
-    "d7a9ea05a589f28e": {},
+    "d7a9ea05a589f28e": {
+        "user": "nodered_user",
+        "password": "groupG12345"
+    },
     "5ed1155aaed18428": {
         "token": "SMARTDESK_SUPER_TOKEN"
     }
