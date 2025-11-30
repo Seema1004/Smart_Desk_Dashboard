@@ -49,6 +49,7 @@
                 "welcome": "4.1.1-git"
             }
         },
-        "menu-menu-item-palette": false
+        "menu-menu-item-palette": false,
+        "menu-menu-item-sidebar": true
     }
 }
