@@ -182,8 +182,8 @@
         "retentionPolicyV18Flux": "",
         "org": "iot-org",
         "bucket": "smartDeskDatabase",
-        "x": 1020,
-        "y": 300,
+        "x": 1140,
+        "y": 240,
         "wires": []
     },
     {
